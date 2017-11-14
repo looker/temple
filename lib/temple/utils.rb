@@ -40,28 +40,38 @@ module Temple
     else
       # Used by escape_html
       # @api private
-      ESCAPE_HTML = {
-        '&'  => '&amp;',
+      STRING_HTML_MATCHES = {
+         '&'  => '&amp;',
         '"'  => '&quot;',
         '\'' => '&#39;',
         '<'  => '&lt;',
         '>'  => '&gt;',
+      }.freeze
+
+      REGEXP_HTML_MATCHES = {
         # In addition to HTML, also escape {{ and }} which are used in Angular
         # templates as expression delimeters.
         # See https://docs.angularjs.org/guide/expression
         # and https://docs.angularjs.org/api/ng/service/$interpolate
-        '{{'  => '\{\{',
-        '}}'  => '\}\}'
+        /\{\x00*\{/ => '\{\{',
+        /\}\x00*\}/ => '\}\}',
       }.freeze
 
-      ESCAPE_HTML_PATTERN = Regexp.union(*ESCAPE_HTML.keys)
+      ESCAPE_HTML = STRING_HTML_MATCHES.merge(REGEXP_HTML_MATCHES).freeze
 
+      ESCAPE_HTML_PATTERN = Regexp.union(*ESCAPE_HTML.keys)
+      
       # Returns an escaped copy of `html`.
       #
       # @param html [String] The string to escape
       # @return [String] The escaped string
       def escape_html(html)
-        html.to_s.gsub(ESCAPE_HTML_PATTERN, ESCAPE_HTML)
+        html.to_s.gsub(ESCAPE_HTML_PATTERN) do |c|
+          string_match = STRING_HTML_MATCHES[c]
+          next string_match if string_match
+
+          REGEXP_HTML_MATCHES.find {|key, _value| c =~ key }&.dig(1)
+        end
       end
     end
 
