@@ -30,19 +30,24 @@ module Temple
     else
       # Used by escape_html
       # @api private
-      ESCAPE_HTML = {
+      STRING_HTML_MATCHES = {
         '&'  => '&amp;',
         '"'  => '&quot;',
         '\'' => '&#39;',
         '<'  => '&lt;',
         '>'  => '&gt;',
+      }.freeze
+
+      REGEXP_HTML_MATCHES = {
         # In addition to HTML, also escape {{ and }} which are used in Angular
         # templates as expression delimeters.
         # See https://docs.angularjs.org/guide/expression
         # and https://docs.angularjs.org/api/ng/service/$interpolate
-        '{{'  => '\{\{',
-        '}}'  => '\}\}'
+        /\{\x00*\{/ => '\{\{',
+        /\}\x00*\}/ => '\}\}',
       }.freeze
+
+      ESCAPE_HTML = STRING_HTML_MATCHES.merge(REGEXP_HTML_MATCHES).freeze
 
       if //.respond_to?(:encoding)
         ESCAPE_HTML_PATTERN = Regexp.union(*ESCAPE_HTML.keys)
@@ -52,21 +57,21 @@ module Temple
         ESCAPE_HTML_PATTERN = /#{Regexp.union(*ESCAPE_HTML.keys)}/n
       end
 
-      if RUBY_VERSION > '1.9'
-        # Returns an escaped copy of `html`.
-        #
-        # @param html [String] The string to escape
-        # @return [String] The escaped string
-        def escape_html(html)
-          html.to_s.gsub(ESCAPE_HTML_PATTERN, ESCAPE_HTML)
-        end
-      else
-        # Returns an escaped copy of `html`.
-        #
-        # @param html [String] The string to escape
-        # @return [String] The escaped string
-        def escape_html(html)
-          html.to_s.gsub(ESCAPE_HTML_PATTERN) {|c| ESCAPE_HTML[c] }
+      # Returns an escaped copy of `html`.
+      #
+      # @param html [String] The string to escape
+      # @return [String] The escaped string
+      def escape_html(html)
+        html.to_s.gsub(ESCAPE_HTML_PATTERN) do |c|
+          string_match = STRING_HTML_MATCHES[c]
+
+          if string_match
+            string_match
+          else
+            match_pair = REGEXP_HTML_MATCHES.find{ |key, _| c =~ key }
+
+            match_pair ? match_pair[1] : nil
+          end
         end
       end
     end
