@@ -21,51 +21,41 @@ module Temple
       html.html_safe? ? html : escape_html(html)
     end
 
-    if defined?(EscapeUtils)
-      # Returns an escaped copy of `html`.
-      #
-      # @param html [String] The string to escape
-      # @return [String] The escaped string
-      def escape_html(html)
-        EscapeUtils.escape_html(html.to_s, false)
-      end
-    elsif defined?(CGI.escapeHTML)
-      # Returns an escaped copy of `html`.
-      #
-      # @param html [String] The string to escape
-      # @return [String] The escaped string
-      def escape_html(html)
-        CGI.escapeHTML(html.to_s)
-      end
-    else
-      # Used by escape_html
-      # @api private
-      STRING_HTML_MATCHES = {
+    @@escape_html_proc = nil
+
+    def escape_html(html)
+      @@escape_html_proc.call(html)
+    end
+
+    def set_escape_html_proc(proc)
+      prev = @@escape_html_proc
+      @@escape_html_proc = proc
+      prev
+    end
+
+    STRING_HTML_MATCHES = {
         '&'  => '&amp;',
         '"'  => '&quot;',
         '\'' => '&#39;',
         '<'  => '&lt;',
         '>'  => '&gt;',
-      }.freeze
+    }.freeze
 
-      REGEXP_HTML_MATCHES = {
+    REGEXP_HTML_MATCHES = {
         # In addition to HTML, also escape {{ and }} which are used in Angular
         # templates as expression delimeters.
         # See https://docs.angularjs.org/guide/expression
         # and https://docs.angularjs.org/api/ng/service/$interpolate
         /\{\x00*\{/ => '\{\{',
         /\}\x00*\}/ => '\}\}',
-      }.freeze
+    }.freeze
 
-      ESCAPE_HTML = STRING_HTML_MATCHES.merge(REGEXP_HTML_MATCHES).freeze
+    ESCAPE_HTML = STRING_HTML_MATCHES.merge(REGEXP_HTML_MATCHES).freeze
 
-      ESCAPE_HTML_PATTERN = Regexp.union(*ESCAPE_HTML.keys)
-      
-      # Returns an escaped copy of `html`.
-      #
-      # @param html [String] The string to escape
-      # @return [String] The escaped string
-      def escape_html(html)
+    ESCAPE_HTML_PATTERN = Regexp.union(*ESCAPE_HTML.keys)
+
+    def internal_escape_html_proc
+      lambda do |html|
         html.to_s.gsub(ESCAPE_HTML_PATTERN) do |c|
           string_match = STRING_HTML_MATCHES[c]
 
@@ -78,6 +68,14 @@ module Temple
           end
         end
       end
+    end
+
+    if defined?(EscapeUtils)
+      set_escape_html_proc(lambda {|html| EscapeUtils.escape_html(html.to_s, false)})
+    elsif defined?(CGI.escapeHTML)
+      set_escape_html_proc(lambda {|html| CGI.escapeHTML(html.to_s)})
+    else
+      set_escape_html_proc(internal_escape_html_proc)
     end
 
     # Generate unique variable name
