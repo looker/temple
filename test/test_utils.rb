@@ -27,9 +27,23 @@ describe Temple::Utils do
 
   it 'can escape angular templating' do
     with_html_safe do
+      Temple::Utils.set_escape_html_proc(Temple::Utils.internal_escape_html_proc)
       Temple::Utils.escape_html('{{ 1 + 1 }}').should.equal '\{\{ 1 + 1 \}\}'
       Temple::Utils.escape_html("{\x00{ 1 + 1 }\x00}").should.equal '\{\{ 1 + 1 \}\}'
       Temple::Utils.escape_html("{\x00\x00{ 1 + 1 }\x00\x00}").should.equal '\{\{ 1 + 1 \}\}'
+    end
+  end
+
+  it 'can replace html escaping' do
+    with_html_safe do
+      begin
+        # verify that if we set a custom html escape transform, it actually gets used
+        prev = Temple::Utils.set_escape_html_proc(lambda {|html| "fore #{html} aft" })
+        Temple::Utils.escape_html('{{ 1 + 1 }}').should.equal 'fore {{ 1 + 1 }} aft'
+        Temple::Utils.escape_html('<').should.equal 'fore < aft'
+      ensure
+        Temple::Utils.set_escape_html_proc(prev)
+      end
     end
   end
 
